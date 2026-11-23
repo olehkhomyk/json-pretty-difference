@@ -3,6 +3,7 @@ const nativeInvoke = window.__TAURI__?.core?.invoke;
 const state = {
   difference: false,
   diffExpanded: false,
+  editorZoom: 100,
   syncScroll: true,
   lastScrolledSide: "left",
   diffObject: "",
@@ -47,6 +48,9 @@ const elements = {
   removedCount: document.getElementById("removed-count"),
   changedCount: document.getElementById("changed-count"),
   copyDiff: document.getElementById("copy-diff"),
+  zoomOut: document.getElementById("zoom-out"),
+  zoomIn: document.getElementById("zoom-in"),
+  zoomLevel: document.getElementById("zoom-level"),
   toast: document.getElementById("toast"),
   left: sideElements("left"),
   right: sideElements("right"),
@@ -345,6 +349,36 @@ function syncEditorVisual(side) {
 function editorLineHeight(input) {
   const lineHeight = Number.parseFloat(getComputedStyle(input).lineHeight);
   return Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 20;
+}
+
+const EDITOR_ZOOM_MIN = 70;
+const EDITOR_ZOOM_MAX = 200;
+const EDITOR_ZOOM_STEP = 10;
+
+function setEditorZoom(zoom) {
+  const nextZoom = Math.min(EDITOR_ZOOM_MAX, Math.max(EDITOR_ZOOM_MIN, zoom));
+  const visibleRows = Object.fromEntries(
+    ["left", "right"].map((side) => [
+      side,
+      elements[side].input.scrollTop / editorLineHeight(elements[side].input),
+    ]),
+  );
+
+  state.editorZoom = nextZoom;
+  const scale = nextZoom / 100;
+  document.documentElement.style.setProperty("--editor-font-size", `${12.5 * scale}px`);
+  document.documentElement.style.setProperty("--editor-line-height", `${Math.max(18, 21 * scale)}px`);
+  elements.zoomLevel.textContent = `${nextZoom}%`;
+  elements.zoomOut.disabled = nextZoom <= EDITOR_ZOOM_MIN;
+  elements.zoomIn.disabled = nextZoom >= EDITOR_ZOOM_MAX;
+
+  requestAnimationFrame(() => {
+    for (const side of ["left", "right"]) {
+      elements[side].input.scrollTop = visibleRows[side] * editorLineHeight(elements[side].input);
+      syncEditorVisual(side);
+    }
+    syncEditorFrom(state.lastScrolledSide);
+  });
 }
 
 function visibleRowForSourceLine(lineMap, sourceLine) {
@@ -696,11 +730,16 @@ function renderDiff(result) {
   setDiffExpanded(state.diffExpanded);
 }
 
-function setDiffExpanded(expanded) {
+function setDiffExpanded(expanded, options = {}) {
   state.diffExpanded = expanded;
   elements.diffOutputWrap.hidden = !expanded;
   elements.diffCollapseToggle.setAttribute("aria-expanded", String(expanded));
   elements.diffCollapseToggle.querySelector("span").textContent = expanded ? "Hide details" : "Show details";
+  if (expanded && options.autoScroll) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => elements.diffSection.scrollIntoView({ behavior: "smooth", block: "start" }));
+    });
+  }
 }
 
 function refreshCompareVisibility() {
@@ -857,11 +896,24 @@ elements.syncScrollToggle.addEventListener("change", () => {
   }
 });
 elements.copyDiff.addEventListener("click", () => copyText(state.diffObject, "Difference object copied"));
-elements.diffCollapseToggle.addEventListener("click", () => setDiffExpanded(!state.diffExpanded));
+elements.diffCollapseToggle.addEventListener("click", () => {
+  setDiffExpanded(!state.diffExpanded, { autoScroll: !state.diffExpanded });
+});
+elements.zoomOut.addEventListener("click", () => setEditorZoom(state.editorZoom - EDITOR_ZOOM_STEP));
+elements.zoomIn.addEventListener("click", () => setEditorZoom(state.editorZoom + EDITOR_ZOOM_STEP));
 
 document.addEventListener("keydown", (event) => {
   const command = event.metaKey || event.ctrlKey;
-  if (command && event.shiftKey && event.key.toLowerCase() === "f") {
+  if (command && ["+", "="].includes(event.key)) {
+    event.preventDefault();
+    setEditorZoom(state.editorZoom + EDITOR_ZOOM_STEP);
+  } else if (command && event.key === "-") {
+    event.preventDefault();
+    setEditorZoom(state.editorZoom - EDITOR_ZOOM_STEP);
+  } else if (command && event.key === "0") {
+    event.preventDefault();
+    setEditorZoom(100);
+  } else if (command && event.shiftKey && event.key.toLowerCase() === "f") {
     event.preventDefault();
     const side = document.activeElement === elements.right.input ? "right" : "left";
     formatSide(side, { force: true });
@@ -876,6 +928,7 @@ document.addEventListener("keydown", (event) => {
 
 renderSide("left");
 renderSide("right");
+setEditorZoom(state.editorZoom);
 elements.syncScrollToggle.checked = state.syncScroll;
 setDifferenceMode(false);
 

@@ -20,9 +20,10 @@ The installer downloads the prebuilt app, verifies its code signature, installs 
 - Collapsible objects and arrays with original line numbers preserved
 - Difference toggle with side-by-side editors
 - Optional line-by-line synchronized scrolling
+- Full-height JSON editors with shared 70–200% text zoom controls
 - Semantic object comparison (object key order is ignored)
 - Added, removed, and changed line highlighting
-- Collapsed-by-default difference object with JSON paths
+- Collapsed-by-default difference object with JSON paths and scroll-to-details behavior
 - Drag-and-drop and local `.json` file opening
 - No server, analytics, uploads, or network requests
 - No Node/npm dependency: the frontend is static and the logic runs in Rust

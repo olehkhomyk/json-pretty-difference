@@ -1,6 +1,6 @@
 [package]
 name = "json-diff-app"
-version = "0.1.6"
+version = "0.1.7"
 description = "Private, offline JSON formatter and semantic diff for macOS"
 authors = ["JSON Diff"]
 edition = "2021"

@@ -20,6 +20,8 @@
   --blue: #6cb6ff;
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
   --font-code: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  --editor-font-size: 12.5px;
+  --editor-line-height: 21px;
 }
 
 * {
@@ -145,6 +147,47 @@ button {
 
 .toolbar {
   gap: 18px;
+}
+
+.zoom-control {
+  display: inline-flex;
+  height: 30px;
+  border: 1px solid #303b4c;
+  border-radius: 9px;
+  align-items: center;
+  overflow: hidden;
+  background: #171e29;
+  color: #c8d1df;
+}
+
+.zoom-control button {
+  width: 30px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #c8d1df;
+  cursor: pointer;
+  font: 600 17px/1 var(--font-ui);
+}
+
+.zoom-control button:hover:not(:disabled) {
+  background: #293447;
+  color: #ffffff;
+}
+
+.zoom-control button:disabled {
+  color: #536074;
+  cursor: default;
+}
+
+.zoom-control span {
+  min-width: 46px;
+  border-right: 1px solid #303b4c;
+  border-left: 1px solid #303b4c;
+  color: #9facbe;
+  font: 600 10px var(--font-code);
+  text-align: center;
 }
 
 .offline-badge {
@@ -342,13 +385,13 @@ button {
 .editor-frame {
   display: grid;
   grid-template-columns: 68px minmax(0, 1fr);
-  height: min(57vh, 560px);
+  height: max(440px, calc(100vh - 205px));
   min-height: 350px;
   background: #0e131b;
 }
 
 .single-mode .editor-frame {
-  height: min(68vh, 680px);
+  height: max(440px, calc(100vh - 205px));
 }
 
 .gutter,
@@ -358,18 +401,22 @@ button {
   border-right: 1px solid #1d2530;
   background: #10151d;
   color: #485468;
-  font: 12px/21px var(--font-code);
   text-align: right;
   user-select: none;
 }
 
 .gutter {
   padding-right: 7px;
+  font: calc(var(--editor-font-size) - 0.5px)/var(--editor-line-height) var(--font-code);
+}
+
+.diff-gutter {
+  font: calc(var(--editor-font-size) - 0.5px)/var(--editor-line-height) var(--font-code);
 }
 
 .gutter-line,
 .diff-gutter-line {
-  height: 21px;
+  height: var(--editor-line-height);
 }
 
 .gutter-line {
@@ -382,7 +429,7 @@ button {
 .fold-toggle,
 .fold-spacer {
   width: 22px;
-  height: 20px;
+  height: min(20px, calc(var(--editor-line-height) - 2px));
   flex: 0 0 22px;
 }
 
@@ -440,7 +487,7 @@ button {
   padding: 18px 20px 40px;
   border: 0;
   outline: 0;
-  font: 12.5px/21px var(--font-code);
+  font: var(--editor-font-size)/var(--editor-line-height) var(--font-code);
   tab-size: 2;
   white-space: pre;
 }
@@ -480,7 +527,7 @@ button {
 .code-line {
   display: block;
   min-width: max-content;
-  height: 21px;
+  height: var(--editor-line-height);
   margin: 0 -20px;
   padding: 0 20px;
 }
@@ -719,7 +766,7 @@ button {
   margin: 0;
   padding: 16px 20px 30px;
   color: #c8d1df;
-  font: 12px/21px var(--font-code);
+  font: var(--editor-font-size)/var(--editor-line-height) var(--font-code);
   tab-size: 2;
 }
 
@@ -769,7 +816,7 @@ button {
   }
 
   .workspace:not(.single-mode) .editor-frame {
-    height: 380px;
+    height: max(440px, calc(100vh - 205px));
   }
 
   .offline-badge {
