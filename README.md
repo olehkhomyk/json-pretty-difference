@@ -16,11 +16,13 @@ The installer downloads the prebuilt app, verifies its code signature, installs 
 
 - One-editor formatter mode on launch
 - Automatic validation and two-space pretty printing
-- Rainbow bracket pairs and JSON syntax highlighting
+- Rainbow bracket pairs, active pair highlighting, and JSON syntax highlighting
+- Collapsible objects and arrays with original line numbers preserved
 - Difference toggle with side-by-side editors
+- Optional line-by-line synchronized scrolling
 - Semantic object comparison (object key order is ignored)
 - Added, removed, and changed line highlighting
-- Structured difference object with JSON paths
+- Collapsed-by-default difference object with JSON paths
 - Drag-and-drop and local `.json` file opening
 - No server, analytics, uploads, or network requests
 - No Node/npm dependency: the frontend is static and the logic runs in Rust

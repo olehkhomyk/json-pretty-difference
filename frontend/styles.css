@@ -28,9 +28,12 @@
 
 html,
 body {
+  width: 100%;
+  height: 100%;
   min-width: 780px;
   min-height: 600px;
   margin: 0;
+  overflow: hidden;
   background:
     radial-gradient(circle at 18% -10%, rgba(139, 92, 246, 0.12), transparent 34%),
     var(--bg);
@@ -56,14 +59,24 @@ button {
   right: 0;
   left: 0;
   height: 38px;
+  border-bottom: 1px solid rgba(40, 49, 64, 0.48);
+  background: rgba(12, 15, 20, 0.96);
+  backdrop-filter: blur(18px);
   app-region: drag;
   -webkit-app-region: drag;
 }
 
 .app-shell {
+  position: fixed;
+  top: 38px;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  min-height: 100vh;
-  padding: 50px 24px 16px;
+  min-height: 0;
+  padding: 12px 24px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .topbar {
@@ -328,7 +341,7 @@ button {
 
 .editor-frame {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-columns: 68px minmax(0, 1fr);
   height: min(57vh, 560px);
   min-height: 350px;
   background: #0e131b;
@@ -350,9 +363,65 @@ button {
   user-select: none;
 }
 
+.gutter {
+  padding-right: 7px;
+}
+
 .gutter-line,
 .diff-gutter-line {
   height: 21px;
+}
+
+.gutter-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.fold-toggle,
+.fold-spacer {
+  width: 22px;
+  height: 20px;
+  flex: 0 0 22px;
+}
+
+.fold-toggle {
+  display: grid;
+  padding: 0;
+  border: 1px solid #2c3747;
+  border-radius: 6px;
+  place-items: center;
+  background: #171e29;
+  color: #91a0b5;
+  cursor: pointer;
+  transition: 130ms ease;
+}
+
+.fold-toggle:hover {
+  border-color: #4b5a70;
+  background: #273142;
+  color: #ffffff;
+}
+
+.fold-toggle svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.25;
+  transition: transform 130ms ease;
+}
+
+.fold-toggle.is-expanded svg {
+  transform: rotate(90deg);
+}
+
+.line-number {
+  min-width: 30px;
+  text-align: right;
 }
 
 .code-viewport {
@@ -459,6 +528,18 @@ button {
 .bracket-4 { color: #6cb6ff; }
 .bracket-5 { color: #f08db2; }
 
+.bracket-match {
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.32);
+  box-shadow: 0 0 0 1px rgba(196, 181, 253, 0.82), 0 0 12px rgba(139, 92, 246, 0.32);
+  color: #ffffff;
+}
+
+.fold-placeholder {
+  color: #7f8ca0;
+  font-style: italic;
+}
+
 .error-bar {
   min-height: 32px;
   padding: 8px 13px;
@@ -551,6 +632,43 @@ button {
   gap: 6px;
 }
 
+.diff-collapse-toggle {
+  display: inline-flex;
+  min-height: 29px;
+  padding: 0 10px 0 8px;
+  border: 1px solid #364154;
+  border-radius: 8px;
+  align-items: center;
+  gap: 6px;
+  background: #202836;
+  color: #c8d1df;
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 650;
+  transition: 130ms ease;
+}
+
+.diff-collapse-toggle:hover {
+  border-color: #53627a;
+  background: #293447;
+  color: #ffffff;
+}
+
+.diff-collapse-toggle svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.25;
+  transition: transform 150ms ease;
+}
+
+.diff-collapse-toggle[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
 .summary-pill {
   min-width: 34px;
   padding: 4px 7px;
@@ -584,6 +702,10 @@ button {
   max-height: 390px;
   overflow: auto;
   background: #0e131b;
+}
+
+.diff-output-wrap[hidden] {
+  display: none;
 }
 
 .diff-gutter {

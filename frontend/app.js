@@ -2,6 +2,7 @@ const nativeInvoke = window.__TAURI__?.core?.invoke;
 
 const state = {
   difference: false,
+  diffExpanded: false,
   syncScroll: true,
   lastScrolledSide: "left",
   diffObject: "",
@@ -17,6 +18,10 @@ const pendingSyncedScroll = {
 function createSideState() {
   return {
     text: "",
+    displayText: "",
+    lineMap: [1],
+    foldRanges: new Map(),
+    foldedLines: new Set(),
     valid: false,
     error: "",
     highlights: {},
@@ -33,6 +38,8 @@ const elements = {
   rightPanel: document.getElementById("right-panel"),
   compareEmpty: document.getElementById("compare-empty"),
   diffSection: document.getElementById("diff-section"),
+  diffOutputWrap: document.getElementById("diff-output-wrap"),
+  diffCollapseToggle: document.getElementById("diff-collapse-toggle"),
   diffOutput: document.getElementById("diff-output"),
   diffGutter: document.getElementById("diff-gutter"),
   differenceCount: document.getElementById("difference-count"),
@@ -71,7 +78,7 @@ function isNumberStart(text, index) {
   return character === "-" || (character >= "0" && character <= "9");
 }
 
-function highlightLine(line, depthState) {
+function highlightLine(line, depthState, lineOffset = 0) {
   let output = "";
   let index = 0;
 
@@ -120,7 +127,7 @@ function highlightLine(line, depthState) {
 
     if (character === "{" || character === "[") {
       const color = depthState.depth % 6;
-      output += `<span class="bracket-${color}">${character}</span>`;
+      output += `<span class="bracket-${color}" data-bracket-index="${lineOffset + index}">${character}</span>`;
       depthState.depth += 1;
       index += 1;
       continue;
@@ -129,7 +136,13 @@ function highlightLine(line, depthState) {
     if (character === "}" || character === "]") {
       depthState.depth = Math.max(0, depthState.depth - 1);
       const color = depthState.depth % 6;
-      output += `<span class="bracket-${color}">${character}</span>`;
+      output += `<span class="bracket-${color}" data-bracket-index="${lineOffset + index}">${character}</span>`;
+      index += 1;
+      continue;
+    }
+
+    if (character === "…") {
+      output += '<span class="fold-placeholder">…</span>';
       index += 1;
       continue;
     }
@@ -147,14 +160,120 @@ function highlightLine(line, depthState) {
   return output || "&nbsp;";
 }
 
-function renderCode(text, highlights = {}) {
+function renderCode(text, highlights = {}, lineMap = null) {
   const lines = text.split("\n");
   const depthState = { depth: 0 };
+  let lineOffset = 0;
   return lines
     .map((line, index) => {
-      const style = highlights[String(index + 1)] || highlights[index + 1] || "";
+      const sourceLine = lineMap?.[index] || index + 1;
+      const style = highlights[String(sourceLine)] || highlights[sourceLine] || "";
       const className = style ? `code-line line-${style}` : "code-line";
-      return `<span class="${className}">${highlightLine(line, depthState)}</span>`;
+      const highlighted = highlightLine(line, depthState, lineOffset);
+      lineOffset += line.length + 1;
+      return `<span class="${className}">${highlighted}</span>`;
+    })
+    .join("");
+}
+
+function findFoldRanges(text) {
+  const ranges = new Map();
+  const stack = [];
+  let line = 1;
+  let column = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (inString) {
+      if (!escaped && character === '"') inString = false;
+      if (!escaped && character === "\\") escaped = true;
+      else escaped = false;
+    } else if (character === '"') {
+      inString = true;
+    } else if (character === "{" || character === "[") {
+      stack.push({ character, line, column });
+    } else if (character === "}" || character === "]") {
+      const expected = character === "}" ? "{" : "[";
+      const opening = stack.at(-1);
+      if (opening?.character === expected) {
+        stack.pop();
+        if (line > opening.line) {
+          ranges.set(opening.line, {
+            startLine: opening.line,
+            endLine: line,
+            openColumn: opening.column,
+            closeColumn: column,
+            openCharacter: opening.character,
+            closeCharacter: character,
+          });
+        }
+      }
+    }
+
+    if (character === "\n") {
+      line += 1;
+      column = 0;
+    } else {
+      column += 1;
+    }
+  }
+
+  return ranges;
+}
+
+function buildProjection(sideState) {
+  const sourceLines = sideState.text.split("\n");
+  const foldRanges = findFoldRanges(sideState.text);
+
+  for (const line of [...sideState.foldedLines]) {
+    if (!foldRanges.has(line)) sideState.foldedLines.delete(line);
+  }
+
+  const displayLines = [];
+  const lineMap = [];
+  const controls = [];
+
+  for (let sourceIndex = 0; sourceIndex < sourceLines.length;) {
+    const sourceLine = sourceIndex + 1;
+    const range = foldRanges.get(sourceLine);
+    const collapsed = Boolean(range && sideState.foldedLines.has(sourceLine));
+
+    if (collapsed) {
+      const opening = sourceLines[sourceIndex].slice(0, range.openColumn + 1);
+      const closingLine = sourceLines[range.endLine - 1] || "";
+      const closing = closingLine.slice(range.closeColumn);
+      displayLines.push(`${opening} … ${closing}`);
+      lineMap.push(sourceLine);
+      controls.push({ line: sourceLine, range, collapsed: true });
+      sourceIndex = range.endLine;
+      continue;
+    }
+
+    displayLines.push(sourceLines[sourceIndex]);
+    lineMap.push(sourceLine);
+    controls.push(range ? { line: sourceLine, range, collapsed: false } : null);
+    sourceIndex += 1;
+  }
+
+  return {
+    text: displayLines.join("\n"),
+    lineMap,
+    controls,
+    foldRanges,
+  };
+}
+
+function renderEditorGutter(side, projection) {
+  elements[side].gutter.innerHTML = projection.lineMap
+    .map((sourceLine, index) => {
+      const control = projection.controls[index];
+      const folding = control
+        ? `<button class="fold-toggle${control.collapsed ? "" : " is-expanded"}" type="button" data-side="${side}" data-line="${sourceLine}" aria-expanded="${!control.collapsed}" aria-label="${control.collapsed ? "Expand" : "Collapse"} lines ${sourceLine} to ${control.range.endLine}" title="${control.collapsed ? "Expand" : "Collapse"} object"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"></path></svg></button>`
+        : '<span class="fold-spacer"></span>';
+      return `<div class="gutter-line">${folding}<span class="line-number">${sourceLine}</span></div>`;
     })
     .join("");
 }
@@ -169,13 +288,31 @@ function renderGutter(element, lineCount, className = "gutter-line") {
 function renderSide(side) {
   const sideState = state[side];
   const sideElements = elements[side];
-  if (sideElements.input.value !== sideState.text) {
-    sideElements.input.value = sideState.text;
+  const projection = buildProjection(sideState);
+  const selectionStart = sideElements.input.selectionStart || 0;
+  const selectionEnd = sideElements.input.selectionEnd || selectionStart;
+
+  sideState.displayText = projection.text;
+  sideState.lineMap = projection.lineMap;
+  sideState.foldRanges = projection.foldRanges;
+
+  if (sideElements.input.value !== projection.text) {
+    sideElements.input.value = projection.text;
+    const maximumSelection = projection.text.length;
+    sideElements.input.setSelectionRange(
+      Math.min(selectionStart, maximumSelection),
+      Math.min(selectionEnd, maximumSelection),
+    );
   }
-  sideElements.highlight.innerHTML = renderCode(sideState.text, sideState.highlights);
-  renderGutter(sideElements.gutter, sideState.text.split("\n").length);
+  sideElements.input.readOnly = sideState.foldedLines.size > 0;
+  sideElements.input.title = sideElements.input.readOnly
+    ? "Expand folded objects to edit JSON"
+    : "";
+  sideElements.highlight.innerHTML = renderCode(projection.text, sideState.highlights, projection.lineMap);
+  renderEditorGutter(side, projection);
   syncEditorVisual(side);
   updateStatus(side);
+  if (document.activeElement === sideElements.input) requestAnimationFrame(() => updateBracketMatch(side));
 }
 
 function updateStatus(side) {
@@ -210,15 +347,30 @@ function editorLineHeight(input) {
   return Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 20;
 }
 
+function visibleRowForSourceLine(lineMap, sourceLine) {
+  let low = 0;
+  let high = lineMap.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lineMap[middle] < sourceLine) low = middle + 1;
+    else high = middle;
+  }
+  return Math.min(low, Math.max(0, lineMap.length - 1));
+}
+
 function syncEditorFrom(sourceSide) {
   if (!state.difference || !state.syncScroll) return;
 
   const targetSide = sourceSide === "left" ? "right" : "left";
   const source = elements[sourceSide].input;
   const target = elements[targetSide].input;
-  const visibleLine = source.scrollTop / editorLineHeight(source);
+  const sourceRow = source.scrollTop / editorLineHeight(source);
+  const sourceRowIndex = Math.min(Math.floor(sourceRow), Math.max(0, state[sourceSide].lineMap.length - 1));
+  const sourceLine = state[sourceSide].lineMap[sourceRowIndex] || 1;
+  const rowRemainder = sourceRow - Math.floor(sourceRow);
+  const targetRow = visibleRowForSourceLine(state[targetSide].lineMap, sourceLine);
   const nextTop = Math.min(
-    visibleLine * editorLineHeight(target),
+    (targetRow + rowRemainder) * editorLineHeight(target),
     Math.max(0, target.scrollHeight - target.clientHeight),
   );
   const nextLeft = Math.min(source.scrollLeft, Math.max(0, target.scrollWidth - target.clientWidth));
@@ -251,6 +403,80 @@ function handleEditorScroll(side) {
 
   pendingSyncedScroll[side] = null;
   state.lastScrolledSide = side;
+  syncEditorFrom(side);
+}
+
+function bracketPairs(text) {
+  const pairs = new Map();
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (!escaped && character === '"') inString = false;
+      if (!escaped && character === "\\") escaped = true;
+      else escaped = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === "{" || character === "[") {
+      stack.push({ character, index });
+      continue;
+    }
+    if (character === "}" || character === "]") {
+      const expected = character === "}" ? "{" : "[";
+      const opening = stack.at(-1);
+      if (opening?.character === expected) {
+        stack.pop();
+        pairs.set(opening.index, index);
+        pairs.set(index, opening.index);
+      }
+    }
+  }
+
+  return pairs;
+}
+
+function clearBracketMatch(side) {
+  elements[side].highlight.querySelectorAll(".bracket-match").forEach((element) => {
+    element.classList.remove("bracket-match");
+  });
+}
+
+function updateBracketMatch(side) {
+  const sideElements = elements[side];
+  const text = sideElements.input.value;
+  const caret = sideElements.input.selectionStart || 0;
+  const candidate = [caret, caret - 1].find((index) => "{}[]".includes(text[index] || ""));
+  clearBracketMatch(side);
+  if (candidate === undefined) return;
+
+  const matching = bracketPairs(text).get(candidate);
+  if (matching === undefined) return;
+
+  for (const index of [candidate, matching]) {
+    sideElements.highlight
+      .querySelector(`[data-bracket-index="${index}"]`)
+      ?.classList.add("bracket-match");
+  }
+}
+
+function toggleFold(side, sourceLine) {
+  const sideState = state[side];
+  if (!sideState.foldRanges.has(sourceLine)) return;
+
+  if (sideState.foldedLines.has(sourceLine)) sideState.foldedLines.delete(sourceLine);
+  else sideState.foldedLines.add(sourceLine);
+
+  renderSide(side);
+  const visibleRow = visibleRowForSourceLine(sideState.lineMap, sourceLine);
+  elements[side].input.scrollTop = Math.max(0, (visibleRow - 1) * editorLineHeight(elements[side].input));
+  syncEditorVisual(side);
   syncEditorFrom(side);
 }
 
@@ -467,6 +693,14 @@ function renderDiff(result) {
   elements.changedCount.textContent = `~${counts.changed}`;
   elements.compareEmpty.hidden = true;
   elements.diffSection.hidden = false;
+  setDiffExpanded(state.diffExpanded);
+}
+
+function setDiffExpanded(expanded) {
+  state.diffExpanded = expanded;
+  elements.diffOutputWrap.hidden = !expanded;
+  elements.diffCollapseToggle.setAttribute("aria-expanded", String(expanded));
+  elements.diffCollapseToggle.querySelector("span").textContent = expanded ? "Hide details" : "Show details";
 }
 
 function refreshCompareVisibility() {
@@ -482,6 +716,7 @@ function refreshCompareVisibility() {
 
 function setDifferenceMode(enabled) {
   state.difference = enabled;
+  if (!enabled) setDiffExpanded(false);
   elements.toggle.checked = enabled;
   elements.syncScrollControl.hidden = !enabled;
   elements.rightPanel.hidden = !enabled;
@@ -501,6 +736,7 @@ function setDifferenceMode(enabled) {
 
 function handleInput(side) {
   const sideState = state[side];
+  sideState.foldedLines.clear();
   sideState.text = elements[side].input.value;
   sideState.error = "";
   sideState.valid = false;
@@ -518,6 +754,7 @@ async function readFile(side, file) {
     return;
   }
   state[side].text = await file.text();
+  state[side].foldedLines.clear();
   state[side].error = "";
   state[side].highlights = {};
   renderSide(side);
@@ -554,6 +791,22 @@ function showToast(message) {
 for (const side of ["left", "right"]) {
   elements[side].input.addEventListener("input", () => handleInput(side));
   elements[side].input.addEventListener("scroll", () => handleEditorScroll(side));
+  elements[side].input.addEventListener("click", () => requestAnimationFrame(() => updateBracketMatch(side)));
+  elements[side].input.addEventListener("keyup", () => updateBracketMatch(side));
+  elements[side].input.addEventListener("select", () => updateBracketMatch(side));
+  elements[side].input.addEventListener("blur", () => clearBracketMatch(side));
+  elements[side].input.addEventListener("keydown", (event) => {
+    if (!elements[side].input.readOnly) return;
+    const modifiesText = event.key.length === 1 || ["Backspace", "Delete", "Enter"].includes(event.key) ||
+      ((event.metaKey || event.ctrlKey) && ["v", "x"].includes(event.key.toLowerCase()));
+    if (modifiesText) showToast("Expand folded objects to edit JSON");
+  });
+  elements[side].gutter.addEventListener("click", (event) => {
+    const button = event.target.closest(".fold-toggle");
+    if (!button) return;
+    toggleFold(side, Number(button.dataset.line));
+    elements[side].input.focus({ preventScroll: true });
+  });
   elements[side].file.addEventListener("change", (event) => {
     readFile(side, event.target.files?.[0]);
     event.target.value = "";
@@ -604,6 +857,7 @@ elements.syncScrollToggle.addEventListener("change", () => {
   }
 });
 elements.copyDiff.addEventListener("click", () => copyText(state.diffObject, "Difference object copied"));
+elements.diffCollapseToggle.addEventListener("click", () => setDiffExpanded(!state.diffExpanded));
 
 document.addEventListener("keydown", (event) => {
   const command = event.metaKey || event.ctrlKey;
