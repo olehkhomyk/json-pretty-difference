@@ -56,6 +56,8 @@ button {
   right: 0;
   left: 0;
   height: 38px;
+  app-region: drag;
+  -webkit-app-region: drag;
 }
 
 .app-shell {
@@ -70,6 +72,15 @@ button {
   justify-content: space-between;
   max-width: 1600px;
   margin: 0 auto 18px;
+  app-region: drag;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.toolbar,
+.toolbar * {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
 }
 
 .brand-block,
