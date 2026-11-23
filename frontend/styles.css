@@ -373,9 +373,16 @@ button {
 }
 
 .syntax-layer {
-  overflow: hidden;
+  right: auto;
+  bottom: auto;
+  width: max-content;
+  min-width: 100%;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
   color: #c8d1df;
   pointer-events: none;
+  will-change: transform;
 }
 
 .code-input {

@@ -386,6 +386,33 @@ mod tests {
     }
 
     #[test]
+    fn formats_large_json_document() {
+        let items: Vec<Value> = (0..300)
+            .map(|index| {
+                serde_json::json!({
+                    "id": index,
+                    "name": format!("Product {index}"),
+                    "enabled": index % 2 == 0,
+                    "price": index as f64 + 0.5,
+                    "tags": ["json", "catalog", "test"]
+                })
+            })
+            .collect();
+        let input = serde_json::to_string(&serde_json::json!({
+            "catalogKey": "catalog_g",
+            "items": items
+        }))
+        .expect("large fixture should serialize");
+
+        let response = format_json(input);
+
+        assert!(response.valid);
+        assert!(response.formatted.lines().count() > 3_000);
+        assert!(response.formatted.contains("\"catalogKey\": \"catalog_g\""));
+        assert!(response.formatted.contains("\"name\": \"Product 299\""));
+    }
+
+    #[test]
     fn detects_semantic_changes() {
         let response = diff_json(
             r#"{"age":29,"tags":["rust"]}"#.to_string(),
