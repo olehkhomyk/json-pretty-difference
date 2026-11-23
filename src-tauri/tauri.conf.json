@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "JSON Diff",
+  "version": "0.1.0",
+  "identifier": "com.local.jsondiff",
+  "build": {
+    "frontendDist": "../frontend"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "JSON Diff",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 820,
+        "minHeight": 620,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "category": "DeveloperTool",
+    "shortDescription": "Private offline JSON formatter and diff",
+    "longDescription": "Format, inspect, and compare JSON documents locally without uploading data.",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
+  }
+}
+

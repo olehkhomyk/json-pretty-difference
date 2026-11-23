@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>JSON Diff</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="titlebar" data-tauri-drag-region></div>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="app-icon" aria-hidden="true"><span>{ }</span></div>
+          <div>
+            <h1>JSON Diff</h1>
+            <p>Private formatter & semantic compare</p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <span class="offline-badge" title="No network requests. Data stays on this Mac.">
+            <span class="status-dot"></span>
+            Offline
+          </span>
+          <label class="difference-toggle">
+            <span>Difference</span>
+            <input id="difference-toggle" type="checkbox" />
+            <span class="switch" aria-hidden="true"></span>
+          </label>
+        </div>
+      </header>
+
+      <section id="workspace" class="workspace single-mode">
+        <article id="left-panel" class="editor-card" data-side="left">
+          <header class="card-header">
+            <div class="panel-title">
+              <span class="side-marker left-marker"></span>
+              <span id="left-title">JSON</span>
+              <span id="left-status" class="validation-status empty">Empty</span>
+            </div>
+            <div class="panel-actions">
+              <button class="text-button open-button" data-side="left" type="button">Open</button>
+              <button class="icon-button format-button" data-side="left" type="button" title="Format JSON (⌘⇧F)">✦</button>
+              <button class="icon-button copy-button" data-side="left" type="button" title="Copy JSON">⧉</button>
+              <button class="icon-button clear-button" data-side="left" type="button" title="Clear">×</button>
+            </div>
+          </header>
+          <div class="drop-surface" data-side="left">
+            <div class="editor-frame">
+              <div id="left-gutter" class="gutter" aria-hidden="true"></div>
+              <div class="code-viewport">
+                <pre id="left-highlight" class="syntax-layer" aria-hidden="true"></pre>
+                <textarea
+                  id="left-input"
+                  class="code-input"
+                  aria-label="JSON input"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  placeholder="Paste JSON here or drop a .json file…"
+                ></textarea>
+              </div>
+            </div>
+            <div id="left-error" class="error-bar" hidden></div>
+          </div>
+        </article>
+
+        <article id="right-panel" class="editor-card right-panel" data-side="right" hidden>
+          <header class="card-header">
+            <div class="panel-title">
+              <span class="side-marker right-marker"></span>
+              <span>Modified JSON</span>
+              <span id="right-status" class="validation-status empty">Empty</span>
+            </div>
+            <div class="panel-actions">
+              <button class="text-button open-button" data-side="right" type="button">Open</button>
+              <button class="icon-button format-button" data-side="right" type="button" title="Format JSON (⌘⇧F)">✦</button>
+              <button class="icon-button copy-button" data-side="right" type="button" title="Copy JSON">⧉</button>
+              <button class="icon-button clear-button" data-side="right" type="button" title="Clear">×</button>
+            </div>
+          </header>
+          <div class="drop-surface" data-side="right">
+            <div class="editor-frame">
+              <div id="right-gutter" class="gutter" aria-hidden="true"></div>
+              <div class="code-viewport">
+                <pre id="right-highlight" class="syntax-layer" aria-hidden="true"></pre>
+                <textarea
+                  id="right-input"
+                  class="code-input"
+                  aria-label="Modified JSON input"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  placeholder="Paste the second JSON here…"
+                ></textarea>
+              </div>
+            </div>
+            <div id="right-error" class="error-bar" hidden></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="compare-empty" class="compare-empty" hidden>
+        <div class="empty-symbol">⇄</div>
+        <div>
+          <strong>Add JSON to both editors</strong>
+          <span>The comparison runs automatically when both documents are valid.</span>
+        </div>
+      </section>
+
+      <section id="diff-section" class="diff-section" hidden>
+        <header class="diff-header">
+          <div>
+            <div class="diff-title-row">
+              <h2>Difference object</h2>
+              <span id="difference-count" class="difference-count">0 changes</span>
+            </div>
+            <p>Semantic changes by JSON path — object key order is ignored.</p>
+          </div>
+          <div class="summary-pills" aria-label="Difference summary">
+            <span id="added-count" class="summary-pill added">+0</span>
+            <span id="removed-count" class="summary-pill removed">−0</span>
+            <span id="changed-count" class="summary-pill changed">~0</span>
+            <button id="copy-diff" class="text-button" type="button">Copy diff</button>
+          </div>
+        </header>
+        <div class="diff-output-wrap">
+          <div id="diff-gutter" class="diff-gutter" aria-hidden="true"></div>
+          <pre id="diff-output" class="diff-output"></pre>
+        </div>
+      </section>
+
+      <footer class="footer-bar">
+        <span>⌘⇧F Format</span>
+        <span>⌘D Difference</span>
+        <span>⌘↩ Compare</span>
+        <span class="privacy-note">JSON never leaves this device</span>
+      </footer>
+    </main>
+
+    <input id="left-file" type="file" accept=".json,application/json,text/json" hidden />
+    <input id="right-file" type="file" accept=".json,application/json,text/json" hidden />
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
+
