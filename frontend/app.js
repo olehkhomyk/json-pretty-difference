@@ -2,9 +2,16 @@ const nativeInvoke = window.__TAURI__?.core?.invoke;
 
 const state = {
   difference: false,
+  syncScroll: true,
+  lastScrolledSide: "left",
   diffObject: "",
   left: createSideState(),
   right: createSideState(),
+};
+
+const pendingSyncedScroll = {
+  left: null,
+  right: null,
 };
 
 function createSideState() {
@@ -21,6 +28,7 @@ function createSideState() {
 const elements = {
   workspace: document.getElementById("workspace"),
   toggle: document.getElementById("difference-toggle"),
+  syncScrollToggle: document.getElementById("sync-scroll-toggle"),
   rightPanel: document.getElementById("right-panel"),
   compareEmpty: document.getElementById("compare-empty"),
   diffSection: document.getElementById("diff-section"),
@@ -165,7 +173,7 @@ function renderSide(side) {
   }
   sideElements.highlight.innerHTML = renderCode(sideState.text, sideState.highlights);
   renderGutter(sideElements.gutter, sideState.text.split("\n").length);
-  syncScroll(side);
+  syncEditorVisual(side);
   updateStatus(side);
 }
 
@@ -189,11 +197,58 @@ function updateStatus(side) {
   sideElements.error.textContent = sideState.error;
 }
 
-function syncScroll(side) {
+function syncEditorVisual(side) {
   const sideElements = elements[side];
   const { scrollTop, scrollLeft } = sideElements.input;
   sideElements.highlight.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`;
   sideElements.gutter.scrollTop = scrollTop;
+}
+
+function scrollRatio(position, scrollSize, viewportSize) {
+  const maximum = Math.max(0, scrollSize - viewportSize);
+  return maximum > 0 ? position / maximum : 0;
+}
+
+function syncEditorFrom(sourceSide) {
+  if (!state.difference || !state.syncScroll) return;
+
+  const targetSide = sourceSide === "left" ? "right" : "left";
+  const source = elements[sourceSide].input;
+  const target = elements[targetSide].input;
+  const verticalRatio = scrollRatio(source.scrollTop, source.scrollHeight, source.clientHeight);
+  const horizontalRatio = scrollRatio(source.scrollLeft, source.scrollWidth, source.clientWidth);
+  const nextTop = verticalRatio * Math.max(0, target.scrollHeight - target.clientHeight);
+  const nextLeft = horizontalRatio * Math.max(0, target.scrollWidth - target.clientWidth);
+
+  if (Math.abs(target.scrollTop - nextTop) < 0.5 && Math.abs(target.scrollLeft - nextLeft) < 0.5) {
+    return;
+  }
+
+  const marker = { top: nextTop, left: nextLeft, expiresAt: performance.now() + 150 };
+  pendingSyncedScroll[targetSide] = marker;
+  target.scrollTop = nextTop;
+  target.scrollLeft = nextLeft;
+  syncEditorVisual(targetSide);
+  setTimeout(() => {
+    if (pendingSyncedScroll[targetSide] === marker) pendingSyncedScroll[targetSide] = null;
+  }, 160);
+}
+
+function handleEditorScroll(side) {
+  syncEditorVisual(side);
+
+  const pending = pendingSyncedScroll[side];
+  if (
+    pending && performance.now() <= pending.expiresAt &&
+    Math.abs(elements[side].input.scrollTop - pending.top) < 1 &&
+    Math.abs(elements[side].input.scrollLeft - pending.left) < 1
+  ) {
+    return;
+  }
+
+  pendingSyncedScroll[side] = null;
+  state.lastScrolledSide = side;
+  syncEditorFrom(side);
 }
 
 function fallbackFormat(input) {
@@ -434,6 +489,7 @@ function setDifferenceMode(enabled) {
   renderSide("right");
   refreshCompareVisibility();
   if (enabled) {
+    requestAnimationFrame(() => syncEditorFrom(state.lastScrolledSide));
     if (state.left.valid && state.right.valid) scheduleCompare(20);
     else if (!state.right.text.trim()) setTimeout(() => elements.right.input.focus(), 80);
   }
@@ -493,7 +549,7 @@ function showToast(message) {
 
 for (const side of ["left", "right"]) {
   elements[side].input.addEventListener("input", () => handleInput(side));
-  elements[side].input.addEventListener("scroll", () => syncScroll(side));
+  elements[side].input.addEventListener("scroll", () => handleEditorScroll(side));
   elements[side].file.addEventListener("change", (event) => {
     readFile(side, event.target.files?.[0]);
     event.target.value = "";
@@ -535,6 +591,14 @@ document.querySelectorAll(".clear-button").forEach((button) => {
 });
 
 elements.toggle.addEventListener("change", () => setDifferenceMode(elements.toggle.checked));
+elements.syncScrollToggle.addEventListener("change", () => {
+  state.syncScroll = elements.syncScrollToggle.checked;
+  pendingSyncedScroll.left = null;
+  pendingSyncedScroll.right = null;
+  if (state.syncScroll) {
+    requestAnimationFrame(() => syncEditorFrom(state.lastScrolledSide));
+  }
+});
 elements.copyDiff.addEventListener("click", () => copyText(state.diffObject, "Difference object copied"));
 
 document.addEventListener("keydown", (event) => {
@@ -554,5 +618,6 @@ document.addEventListener("keydown", (event) => {
 
 renderSide("left");
 renderSide("right");
+elements.syncScrollToggle.checked = state.syncScroll;
 setDifferenceMode(false);
 
