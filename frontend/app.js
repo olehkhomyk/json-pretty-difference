@@ -28,6 +28,7 @@ function createSideState() {
 const elements = {
   workspace: document.getElementById("workspace"),
   toggle: document.getElementById("difference-toggle"),
+  syncScrollControl: document.querySelector(".sync-scroll-toggle"),
   syncScrollToggle: document.getElementById("sync-scroll-toggle"),
   rightPanel: document.getElementById("right-panel"),
   compareEmpty: document.getElementById("compare-empty"),
@@ -204,9 +205,9 @@ function syncEditorVisual(side) {
   sideElements.gutter.scrollTop = scrollTop;
 }
 
-function scrollRatio(position, scrollSize, viewportSize) {
-  const maximum = Math.max(0, scrollSize - viewportSize);
-  return maximum > 0 ? position / maximum : 0;
+function editorLineHeight(input) {
+  const lineHeight = Number.parseFloat(getComputedStyle(input).lineHeight);
+  return Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 20;
 }
 
 function syncEditorFrom(sourceSide) {
@@ -215,10 +216,12 @@ function syncEditorFrom(sourceSide) {
   const targetSide = sourceSide === "left" ? "right" : "left";
   const source = elements[sourceSide].input;
   const target = elements[targetSide].input;
-  const verticalRatio = scrollRatio(source.scrollTop, source.scrollHeight, source.clientHeight);
-  const horizontalRatio = scrollRatio(source.scrollLeft, source.scrollWidth, source.clientWidth);
-  const nextTop = verticalRatio * Math.max(0, target.scrollHeight - target.clientHeight);
-  const nextLeft = horizontalRatio * Math.max(0, target.scrollWidth - target.clientWidth);
+  const visibleLine = source.scrollTop / editorLineHeight(source);
+  const nextTop = Math.min(
+    visibleLine * editorLineHeight(target),
+    Math.max(0, target.scrollHeight - target.clientHeight),
+  );
+  const nextLeft = Math.min(source.scrollLeft, Math.max(0, target.scrollWidth - target.clientWidth));
 
   if (Math.abs(target.scrollTop - nextTop) < 0.5 && Math.abs(target.scrollLeft - nextLeft) < 0.5) {
     return;
@@ -480,6 +483,7 @@ function refreshCompareVisibility() {
 function setDifferenceMode(enabled) {
   state.difference = enabled;
   elements.toggle.checked = enabled;
+  elements.syncScrollControl.hidden = !enabled;
   elements.rightPanel.hidden = !enabled;
   elements.workspace.classList.toggle("single-mode", !enabled);
   document.getElementById("left-title").textContent = enabled ? "Original JSON" : "JSON";

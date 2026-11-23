@@ -200,6 +200,10 @@ button {
   background: white;
 }
 
+.sync-scroll-toggle[hidden] {
+  display: none;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
